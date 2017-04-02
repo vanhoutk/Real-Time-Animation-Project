@@ -108,6 +108,13 @@ public:
 			this->Zoom = 45.0f;
 	}
 
+	void UpdateCamera3rdPerson(GLfloat pitch, GLfloat yaw, vec3 characterPosition, GLfloat cameraDistance, GLfloat yOffset)
+	{
+		Position.v[0] = characterPosition.v[0] + (cameraDistance * cos(pitch) * sin(yaw));
+		Position.v[1] = /*characterPosition.v[1] +*/ yOffset + cameraDistance * sin(pitch);
+		Position.v[2] = characterPosition.v[2] + (cameraDistance * cos(pitch) * cos(yaw));
+	}
+
 private:
 	// Calculates the front vector from the Camera's (updated) Eular Angles
 	void updateCameraVectors()

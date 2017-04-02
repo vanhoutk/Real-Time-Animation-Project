@@ -33,35 +33,43 @@ using namespace std;
 #define NUM_TEXTURES 1
 
 bool firstMouse = true;
+bool forwardAnimation = true;
 bool keys[1024];
-Camera camera(vec3(-1.5f, 2.0f, 10.0f));
-//enum Meshes { BASE_MESH, THUMB0_MESH, THUMB1_MESH, THUMB2_MESH };
-enum Meshes { HAND_MESH, HAND_SHELL_MESH, JOINT_MESH, TIP_MESH, JOINT_SHELL_MESH, TIP_SHELL_MESH };
-enum Modes { ROTATE_HAND, CLOSE_FIST, OPEN_FIST, CLOSE_AND_OPEN_FIST};
+Camera camera(vec3(-1.5f, 2.0f, 30.0f));
+enum Bezier { WAVE, CURVE };
+enum Meshes { LAMP_BASE_MESH, LAMP_ARM_LOWER_MESH, LAMP_ARM_UPPER_MESH, LAMP_HEAD_MESH, LAMP_LIGHT_MESH, LIGHT_MESH, GROUND_MESH };
 enum Shaders { SKYBOX, BASIC_COLOUR_SHADER, BASIC_TEXTURE_SHADER, LIGHT_SHADER, LIGHT_TEXTURE_SHADER };
 enum Textures { METAL_TEXTURE };
+GLfloat cameraDistance = 20.0f;
+GLfloat cameraPitch = 0.0f;
 GLfloat cameraSpeed = 0.005f;
-GLfloat yaw = 0.0f, pitch = 0.0f, roll = 0.0f;
+GLfloat cameraYaw = 0.0f;
+GLfloat movementSpeed = 0.1f;
+GLfloat currentTime = 0.0f;
+GLfloat timeChange = 0.002f;
+GLfloat yOffset = 3.0f;
 GLuint animationMode = -1;
-GLuint boneIndex = 0;
+GLuint bezierCurve = CURVE;
 GLuint lastX = 400, lastY = 300;
 GLuint shaderProgramID[NUM_SHADERS];
 int screenWidth = 1000;
 int screenHeight = 800;
-Mesh skyboxMesh;// , planeMesh;
-//Mesh baseMesh, thumbMesh0, thumbMesh1, thumbMesh2;
-Mesh handMesh, handShellMesh, fingerJointMesh, fingerTipMesh, jointShellMesh, tipShellMesh;
-Skeleton handSkeleton;
-vec4 upV = vec4(0.0f, 0.0f, 1.0f, 0.0f); //Up and Forward are flipped because of the initial rotation of the model
-vec4 fV = vec4(0.0f, 1.0f, 0.0f, 0.0f);
-vec4 rightV = vec4(1.0f, 0.0f, 0.0f, 0.0f);
-vec3 origin = vec3(0.0f, 0.0f, 0.0f);
-versor orientation;
-mat4 rotationMat;
-//mat4 eulerRotationMat;
+Mesh lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh, lightMesh, groundMesh;
+Skeleton lampSkeleton;
+vec3 lampPosition = vec3(0.0f, 0.0f, 0.0f);
+vec3 spherePosition;// = vec3(-9.0f, 10.0f, 0.0f);
+// | Spline points
+vec3 p1 = vec3(-10.0f, 8.0f, 0.0f);
+vec3 p2 = vec3(-11.0f, 11.0f, 1.0f);
+vec3 p3 = vec3(-9.0f, 14.0f, 2.0f);
+vec3 p4 = vec3(-2.0f, 10.0f, 3.0f);
+
+vec3 wave[4] = { vec3(-9.0f, 8.0f, 4.0f), vec3(-7.0f, 11.0f, 4.0f), vec3(-5.0f, 13.0f, 4.0f), vec3(-4.0f, 10.0f, 4.0f) };
+vec3 curve1[4] = { vec3(-6.0f, 6.0f, 4.0f), vec3(-9.0f, 6.0f, 4.0f), vec3(-9.0f, 10.0f, 4.0f), vec3(-6.0f, 10.0f, 4.0f) };
+vec3 curve2[4] = { vec3(-6.0f, 10.0f, 4.0f), vec3(-3.0f, 10.0f, 4.0f), vec3(-3.0f, 6.0f, 4.0f), vec3(-6.0f, 6.0f, 4.0f) };
 
 // | Resource Locations
-const char * meshFiles[NUM_MESHES] = { "../Meshes/hand.obj", "../Meshes/hand_shell.obj", "../Meshes/finger_joint.dae", "../Meshes/finger_tip.dae", "../Meshes/finger_joint_shell.obj", "../Meshes/finger_tip_shell.dae" };
+const char * meshFiles[NUM_MESHES] = { "../Meshes/lamp_base.dae", "../Meshes/lamp_arm.dae", "../Meshes/lamp_arm_upper.dae", "../Meshes/lamp_head.obj", "../Meshes/lamp_light.obj", "../Meshes/particle.dae" };
 const char * skyboxTextureFiles[6] = { "../Textures/TCWposx.png", "../Textures/TCWnegx.png", "../Textures/TCWposy.png", "../Textures/TCWnegy.png", "../Textures/TCWposz.png", "../Textures/TCWnegz.png" };
 const char * textureFiles[NUM_TEXTURES] = { "../Textures/metal.jpg" };
 
@@ -77,20 +85,21 @@ void display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// Set the view matrix to first or third person views
-	mat4 view = camera.GetViewMatrix();
+	mat4 view = look_at(camera.Position, lampPosition + vec3(0.0f, yOffset, 0.0f), camera.WorldUp);//  camera.GetViewMatrix();
 
 	// Projection Matrix
 	mat4 projection = perspective(camera.Zoom, (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
 	
 	// Model Matrix
-	mat4 model = identity_mat4();
-
-	// Draw skybox first
-	//skyboxMesh.drawSkybox(view, projection);
+	//mat4 model = translate(identity_mat4(), lampPosition);
 
 	vec4 view_position = vec4(camera.Position.v[0], camera.Position.v[1], camera.Position.v[2], 0.0f);
 
-	handSkeleton.drawSkeleton(view, projection, view_position);
+	//lampBaseMesh.drawMesh(view, projection, model, vec4(1.0f, 1.0f, 1.0f, 1.0f), view_position);
+	//lampArmMesh.drawMesh(view, projection, model, vec4(1.0f, 1.0f, 1.0f, 1.0f), view_position);
+	//lampHeadMesh.drawMesh(view, projection, model, vec4(1.0f, 1.0f, 1.0f, 1.0f), view_position);
+	//lampLightMesh.drawMesh(view, projection, model, vec4(0.9f, 0.9f, 0.0f, 0.75f), view_position);
+	lampSkeleton.drawSkeleton(view, projection, view_position);
 
 	glutSwapBuffers();
 }
@@ -98,22 +107,50 @@ void display()
 void processInput()
 {
 	if (keys[GLUT_KEY_UP])
-		camera.ProcessKeyboard(FORWARD, cameraSpeed);
+		lampSkeleton.moveLamp(MOVE_FORWARD, movementSpeed);
 	if (keys[GLUT_KEY_DOWN])
-		camera.ProcessKeyboard(BACKWARD, cameraSpeed);
+		lampSkeleton.moveLamp(MOVE_BACKWARD, movementSpeed);
 	if (keys[GLUT_KEY_LEFT])
-		camera.ProcessKeyboard(LEFT, cameraSpeed);
+		lampSkeleton.turnLamp(TURN_LEFT, movementSpeed / 10.0f);
 	if (keys[GLUT_KEY_RIGHT])
-		camera.ProcessKeyboard(RIGHT, cameraSpeed);
+		lampSkeleton.turnLamp(TURN_RIGHT, movementSpeed / 10.0f);
 
-	/*if (keys['p'])
-		handSkeleton.bones[boneIndex]->rollJoint(radians(1.0f));
-	if (keys['o'])
-		handSkeleton.bones[boneIndex]->bendJoint(radians(1.0f));
-	if(keys['i'])
-		handSkeleton.bones[boneIndex]->pivotJoint(radians(1.0f));*/
+	if (keys['w'])
+	{
+		cameraPitch += cameraSpeed;
+		if (cameraPitch > 1.57f)
+			cameraPitch = 1.57f;
+	}
+	if (keys['s'])
+	{
+		cameraPitch -= cameraSpeed;
+		if (cameraPitch < 0.0f)
+			cameraPitch = 0.0f;
+	}
+	if (keys['a'])
+		cameraYaw -= cameraSpeed;
+	if (keys['d'])
+		cameraYaw += cameraSpeed;
 
-	if (keys['1'])
+	// Move the sphere position around manually
+	/*if (animationMode == CCD_IK_MANUAL || animationMode == CCD_IK_MANUAL_FINGER)
+	{
+		if (keys['p'])
+			spherePosition += vec3(0.01f, 0.0f, 0.0f);
+		if (keys['o'])
+			spherePosition += vec3(0.0f, 0.01f, 0.0f);
+		if (keys['l'])
+			spherePosition += vec3(0.0f, -0.01f, 0.0f);
+		if (keys['i'])
+			spherePosition += vec3(-0.01f, 0.0f, 0.0f);
+		if (keys['j'])
+			spherePosition += vec3(0.0f, 0.0f, 0.01f);
+		if (keys['k'])
+			spherePosition += vec3(0.0f, 0.0f, -0.01f);
+	}*/
+
+	// Change animation mode
+	/*if (keys['1'])
 		animationMode = ROTATE_HAND;
 	if (keys['2'])
 		animationMode = CLOSE_FIST;
@@ -121,44 +158,101 @@ void processInput()
 		animationMode = OPEN_FIST;
 	if (keys['4'])
 		animationMode = CLOSE_AND_OPEN_FIST;
-	/*if (keys['5'])
-		boneIndex = 5;
+	//if (keys['5'])
+		//animationMode = ANALYTICAL_IK_2D;
 	if (keys['6'])
-		boneIndex = 6;
+		animationMode = CCD_IK_MANUAL;
 	if (keys['7'])
-		boneIndex = 7;
+		animationMode = CCD_IK_SPLINE;
 	if (keys['8'])
-		boneIndex = 8;
+		animationMode = CCD_IK_MANUAL_FINGER;
 	if (keys['9'])
-		boneIndex = 9;*/
+		animationMode = CCD_IK_SPLINE_FINGER;
 	if (keys['0'])
 		animationMode = -1;
 
+	if (keys['n'])
+		bezierCurve = WAVE;
+	if (keys['m'])
+		bezierCurve = CURVE;*/
 
+	// Close the window if 'Esc' is pressed
 	if (keys[(char)27])
 		exit(0);
 }
 
-void updateScene()
+void updateAnimation()
 {
+	if (currentTime <= 1.0f)
+		currentTime += timeChange;
+	else
+	{
+		currentTime = 0.0f;
+		animationMode = -1;
+	}
+
 	switch (animationMode)
 	{
-	case ROTATE_HAND:
-		handSkeleton.rotateWrist360();
-		break;
-	case CLOSE_FIST:
-		handSkeleton.closeFist();
-		break;
-	case OPEN_FIST:
-		handSkeleton.openFist();
-		break;
-	case CLOSE_AND_OPEN_FIST:
-		handSkeleton.closeAndOpenFist();
+	case JUMP:
+		cout << "Jump" << endl;
+		lampSkeleton.jumpLamp(currentTime, (currentTime <= timeChange));
 		break;
 	}
+
+	//if(forwardAnimation)
+	//	spherePosition = splinePositionBezier(p1, p2, p3, p4, currentTime);
+	//else
+	//	spherePosition = splinePositionBezier(p4, p3, p2, p1, currentTime);
+	if (bezierCurve == WAVE)
+	{
+		if (forwardAnimation)
+			spherePosition = splinePositionBezier(wave[0], wave[1], wave[2], wave[3], currentTime);
+		else
+			spherePosition = splinePositionBezier(wave[3], wave[2], wave[1], wave[0], currentTime);
+	}
+	else
+	{
+		if (forwardAnimation)
+			spherePosition = splinePositionBezier(curve1[0], curve1[1], curve1[2], curve1[3], currentTime);
+		else
+			spherePosition = splinePositionBezier(curve2[0], curve2[1], curve2[2], curve2[3], currentTime);
+	}
+}
+
+void updateScene()
+{
+	if(animationMode != -1)
+		updateAnimation();
+
 	processInput();
+	lampPosition = lampSkeleton.getRootPosition();
+	camera.UpdateCamera3rdPerson(cameraPitch, cameraYaw, lampPosition, cameraDistance, yOffset);
 	// Draw the next frame
 	glutPostRedisplay();
+}
+
+void initialiseMeshes()
+{
+	lampBaseMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
+	lampBaseMesh.generateObjectBufferMesh(meshFiles[LAMP_BASE_MESH]);
+
+	lampArmLowerMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
+	lampArmLowerMesh.generateObjectBufferMesh(meshFiles[LAMP_ARM_LOWER_MESH]);
+
+	lampArmUpperMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
+	lampArmUpperMesh.generateObjectBufferMesh(meshFiles[LAMP_ARM_UPPER_MESH]);
+
+	lampHeadMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
+	lampHeadMesh.generateObjectBufferMesh(meshFiles[LAMP_HEAD_MESH]);
+
+	lampLightMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
+	lampLightMesh.generateObjectBufferMesh(meshFiles[LAMP_LIGHT_MESH]);
+
+	lightMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
+	lightMesh.generateObjectBufferMesh(meshFiles[LIGHT_MESH]);
+
+	//groundMesh = Mesh(&shaderProgramID[LIGHT_TEXTURE_SHADER]);
+	//groundMesh.generateObjectBufferMesh(meshFiles[GROUND_MESH]);
 }
 
 void init()
@@ -169,47 +263,12 @@ void init()
 	shaderProgramID[i] = CompileShaders(vertexShaderNames[i], fragmentShaderNames[i]);
 	}
 
-	skyboxMesh = Mesh(&shaderProgramID[SKYBOX]);
-	skyboxMesh.setupSkybox(skyboxTextureFiles);
+	// Create all of the meshes
+	initialiseMeshes();
 
-	//planeMesh = Mesh(&shaderProgramID[BASIC_TEXTURE_SHADER]);
-	//planeMesh.generateObjectBufferMesh(meshFiles[PLANE_MESH]);
-	//planeMesh.loadTexture(textureFiles[PLANE_TEXTURE]);
-
-	//baseMesh = Mesh(&shaderProgramID[BASIC_COLOUR_SHADER]);
-	//baseMesh.generateObjectBufferMesh(meshFiles[BASE_MESH]);
-
-	handMesh = Mesh(&shaderProgramID[LIGHT_TEXTURE_SHADER]);
-	handMesh.generateObjectBufferMesh(meshFiles[HAND_MESH]);
-	handMesh.loadTexture(textureFiles[METAL_TEXTURE]);
-
-	fingerJointMesh = Mesh(&shaderProgramID[LIGHT_TEXTURE_SHADER]);
-	fingerJointMesh.generateObjectBufferMesh(meshFiles[JOINT_MESH]);
-	fingerJointMesh.loadTexture(textureFiles[METAL_TEXTURE]);
-
-	fingerTipMesh = Mesh(&shaderProgramID[LIGHT_TEXTURE_SHADER]);
-	fingerTipMesh.generateObjectBufferMesh(meshFiles[TIP_MESH]);
-	fingerTipMesh.loadTexture(textureFiles[METAL_TEXTURE]);
-
-	handShellMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
-	handShellMesh.generateObjectBufferMesh(meshFiles[HAND_SHELL_MESH]);
-
-	jointShellMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
-	jointShellMesh.generateObjectBufferMesh(meshFiles[JOINT_SHELL_MESH]);
-
-	tipShellMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
-	tipShellMesh.generateObjectBufferMesh(meshFiles[TIP_SHELL_MESH]);
-
-	handSkeleton.createHand(handMesh, handShellMesh, fingerJointMesh, jointShellMesh, fingerTipMesh, tipShellMesh);
-
-	//thumbMesh0 = Mesh(&shaderProgramID[BASIC_COLOUR_SHADER]);
-	//thumbMesh0.generateObjectBufferMesh(meshFiles[THUMB0_MESH]);
-
-	//thumbMesh1 = Mesh(&shaderProgramID[BASIC_COLOUR_SHADER]);
-	//thumbMesh1.generateObjectBufferMesh(meshFiles[THUMB1_MESH]);
-
-	//thumbMesh2 = Mesh(&shaderProgramID[BASIC_COLOUR_SHADER]);
-	//thumbMesh2.generateObjectBufferMesh(meshFiles[THUMB2_MESH]);
+	//handSkeleton.createRightHand(handMesh, handShellMesh, fingerJointMesh, jointShellMesh, fingerTipMesh, tipShellMesh);
+	//torsoSkeleton.createTorso(torsoMesh, shouldersMesh, shouldersShellMesh, upperArmShellMesh, lowerArmShellMesh, handMesh, handShellMesh, fingerJointMesh, jointShellMesh, fingerTipMesh, tipShellMesh);
+	lampSkeleton.createLamp(lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh);
 }
 
 /*
@@ -219,6 +278,11 @@ void init()
 void pressNormalKeys(unsigned char key, int x, int y)
 {
 	keys[key] = true;
+
+	if (keys['v'])
+	{
+		animationMode = JUMP;
+	}
 }
 
 void releaseNormalKeys(unsigned char key, int x, int y)
@@ -258,7 +322,12 @@ void processMouse(int x, int y)
 }
 
 void mouseWheel(int button, int dir, int x, int y)
-{}
+{
+	if (dir > 0)
+		cameraDistance -= 10.0f * cameraSpeed;
+	else
+		cameraDistance += 10.0f * cameraSpeed;
+}
 #pragma endregion
 
 /*

@@ -155,15 +155,18 @@
     <ClInclude Include="Antons_maths_funcs.h" />
     <ClInclude Include="Bone.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="InverseKinematics.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="PlaneRotation.h" />
     <ClInclude Include="Shader_Functions.h" />
     <ClInclude Include="Skeleton.h" />
     <ClInclude Include="stb_image.h" />
+    <ClInclude Include="text.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="text.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
