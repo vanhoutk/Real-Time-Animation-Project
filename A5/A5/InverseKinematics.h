@@ -12,7 +12,7 @@
 #include "Antons_maths_funcs.h" // Anton's maths functions
 #include "Bone.h"
 
-void analyticalIK(vec3 endPosition, float L1, float L2, float& theta1, float& theta2)
+void analyticalIK(vec3 endPosition, float L1, float L2, float& theta1, float& theta2, float& theta3, vec3 forward, vec3 right, vec3 up)
 {
 	float x = endPosition.v[0];
 	float y = endPosition.v[1];
@@ -48,18 +48,45 @@ void analyticalIK(vec3 endPosition, float L1, float L2, float& theta1, float& th
 	float distanceXY = sqrt(x2 + y2);
 	float distanceYZ = sqrt(y2 + z2);
 
-	float thetaT = 180 - degrees(acos(x / distance));
+	//float thetaT = 180 - degrees(acos(x / distance));
+	float thetaT;
+	if (distanceXZ > 0.001f)
+		thetaT = degrees(acos(y / distanceXZ));
+	else
+		thetaT = 0;
+
+	float alpha1;
+	if (distance > 0.001f)
+		alpha1 = degrees(acos(y / distance));
+	else
+		alpha1 = 0;
 	
-	if (y >= 0.0f)
-		thetaT *= -1.0f;
+	//if (y >= 0.0f)
+	//	thetaT *= -1.0f;
 
 	float fraction1 = (L12 + distance2 - L22) / (2 * L1 * distance);
+	float fractionA = (L12 + distance2 - L22) / (2 * L1 * distance);
+
+	float alpha = degrees(acos(fractionA));
+
+	float alpha2 = alpha - alpha1;
+
 	float fraction2 = (L12 + L22 - distance2) / (2 * L1 * L2);
 
 	float fractionB = (pow((L1 + L2), 2) - distance2) / (distance2 - pow((L1 - L2), 2));
 
-	theta1 = thetaT - degrees(acosf(fraction1));
+
+	float thetaForward = degrees(atanf(forward.v[0] / forward.v[2]));
+
+	//theta1 = thetaT - degrees(acosf(fraction1));
+	theta1 = alpha2;
 	theta2 = degrees(2 * atanf(sqrt(fractionB)));
+
+	if (z > 0)
+	{
+		float fractionC = x / z;
+		theta3 = degrees(atanf(fractionC)) - thetaForward;
+	}
 }
 
 #define MAX_IK_TRIES 500

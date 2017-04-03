@@ -48,7 +48,7 @@ GLfloat movementSpeed = 0.1f;
 GLfloat currentTime = 0.0f;
 GLfloat timeChange = 0.002f;
 GLfloat yOffset = 3.0f;
-GLuint animationMode = -1;
+GLuint animationMode = IDLE;
 GLuint bezierCurve = CURVE;
 GLuint lastX = 400, lastY = 300;
 GLuint shaderProgramID[NUM_SHADERS];
@@ -106,30 +106,45 @@ void display()
 
 void processInput()
 {
-	if (keys[GLUT_KEY_UP])
-		lampSkeleton.moveLamp(MOVE_FORWARD, movementSpeed);
-	if (keys[GLUT_KEY_DOWN])
-		lampSkeleton.moveLamp(MOVE_BACKWARD, movementSpeed);
-	if (keys[GLUT_KEY_LEFT])
-		lampSkeleton.turnLamp(TURN_LEFT, movementSpeed / 10.0f);
-	if (keys[GLUT_KEY_RIGHT])
-		lampSkeleton.turnLamp(TURN_RIGHT, movementSpeed / 10.0f);
+	if (animationMode == IDLE)
+	{
+		if (keys[GLUT_KEY_UP])
+		{
+			animationMode = PRE_JUMP_FORWARD;
+			//lampSkeleton.moveLamp(MOVE_FORWARD, movementSpeed);
+		}
+		if (keys[GLUT_KEY_DOWN])
+			lampSkeleton.moveLamp(MOVE_BACKWARD, movementSpeed);
+		if (keys[GLUT_KEY_LEFT])
+			lampSkeleton.turnLamp(TURN_LEFT, movementSpeed / 10.0f);
+		if (keys[GLUT_KEY_RIGHT])
+			lampSkeleton.turnLamp(TURN_RIGHT, movementSpeed / 10.0f);
 
-	if (keys['w'])
+		if (keys['v'])
+		{
+			animationMode = PRE_JUMP;
+		}
+		else if (keys['b'])
+		{
+			animationMode = LOOK_LEFT;
+		}
+	}
+
+	if (keys['u'])
 	{
 		cameraPitch += cameraSpeed;
 		if (cameraPitch > 1.57f)
 			cameraPitch = 1.57f;
 	}
-	if (keys['s'])
+	if (keys['j'])
 	{
 		cameraPitch -= cameraSpeed;
 		if (cameraPitch < 0.0f)
 			cameraPitch = 0.0f;
 	}
-	if (keys['a'])
+	if (keys['h'])
 		cameraYaw -= cameraSpeed;
-	if (keys['d'])
+	if (keys['k'])
 		cameraYaw += cameraSpeed;
 
 	// Move the sphere position around manually
@@ -188,14 +203,30 @@ void updateAnimation()
 	else
 	{
 		currentTime = 0.0f;
-		animationMode = -1;
+		//animationMode = -1;
 	}
 
 	switch (animationMode)
 	{
-	case JUMP:
-		cout << "Jump" << endl;
-		lampSkeleton.jumpLamp(currentTime, (currentTime <= timeChange));
+	case PRE_JUMP:
+	case POST_JUMP:
+		lampSkeleton.preAndPostJumpLamp(currentTime, timeChange, animationMode);
+		break;
+	case DO_JUMP:
+		lampSkeleton.jumpLamp(currentTime, timeChange, animationMode);
+		break;
+	/*case LOOK_LEFT:
+		lampSkeleton.lookLeftLamp(currentTime, timeChange, animationMode);
+		break;
+	case LOOK_RIGHT:
+		lampSkeleton.lookRightLamp(currentTime, timeChange, animationMode);
+		break;*/
+	case PRE_JUMP_FORWARD:
+	case POST_JUMP_FORWARD:
+		lampSkeleton.preAndPostJumpForwardLamp(currentTime, timeChange, animationMode);
+		break;
+	case JUMP_FORWARD:
+		lampSkeleton.jumpForwardLamp(currentTime, timeChange, animationMode);
 		break;
 	}
 
@@ -221,7 +252,7 @@ void updateAnimation()
 
 void updateScene()
 {
-	if(animationMode != -1)
+	if(animationMode != IDLE)
 		updateAnimation();
 
 	processInput();
@@ -278,11 +309,6 @@ void init()
 void pressNormalKeys(unsigned char key, int x, int y)
 {
 	keys[key] = true;
-
-	if (keys['v'])
-	{
-		animationMode = JUMP;
-	}
 }
 
 void releaseNormalKeys(unsigned char key, int x, int y)

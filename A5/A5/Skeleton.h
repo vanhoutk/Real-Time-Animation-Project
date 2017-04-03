@@ -14,6 +14,7 @@
 #include "Mesh.h"
 
 enum Movements { JUMP, TURN_LEFT, TURN_RIGHT, MOVE_FORWARD, MOVE_BACKWARD };
+enum Animations { IDLE, PRE_JUMP, DO_JUMP, POST_JUMP, LOOK_LEFT, LOOK_RIGHT, PRE_JUMP_FORWARD, JUMP_FORWARD, POST_JUMP_FORWARD, NUM_ANIMATIONS };
 enum Bones {BASE, LOWER_ARM, UPPER_ARM, HEAD, LIGHT};
 
 class Skeleton {
@@ -37,7 +38,12 @@ public:
 	void moveToCCD(vec3 position, bool hand);
 	void moveLamp(int direction, GLfloat distance);
 	void turnLamp(int direction, GLfloat rotation);
-	void jumpLamp(GLfloat time, bool first);
+	void preAndPostJumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	void jumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	void preAndPostJumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	void jumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	void lookLeftLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	void lookRightLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
 	vec3 getRootPosition();
 
 private:
@@ -46,14 +52,15 @@ private:
 
 	GLfloat count = 0.0f;
 	GLfloat speed = 0.15f;
-	GLfloat theta1 = 0.0f;
-	GLfloat theta2 = 0.0f;
+	GLfloat theta1 = 0.0f, theta2 = 0.0f, theta3 = 0.0f;
+	GLfloat theta4 = 0.0f, theta5 = 0.0f, theta6 = 0.0f;
 
 	vec4 joint_colour = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	vec4 shell_colour = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	vec4 light_colour = vec4(0.85f, 0.75f, 0.0f, 0.5f);
 
 	vec3 jumpBase[4], jumpHead[4];
+	vec3 lookPoints[4];
 };
 
 Skeleton::Skeleton()
@@ -299,6 +306,14 @@ void Skeleton::createLamp(Mesh base, Mesh arm_lower, Mesh arm_upper, Mesh head, 
 	light_local = translate(light_local, vec3(0.0f, 0.0f, -1.25f));
 	bones[4] = new Bone("head", bones[3], light_local, light, Mesh(), false, light_colour);
 	bones[3]->addChild(bones[4]);
+
+	analyticalIK(bones[HEAD]->getGlobalPosition() - vec4(0.0f, 1.0f, 0.0f, 0.0f) - rootBone->getGlobalPosition(), 3.15f, 3.0f, theta1, theta2, theta3, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+
+	bones[LOWER_ARM]->pivotJoint(-1.0f * radians(theta3));
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
+
+	//theta1 = theta2 = theta3 = 0.0f;
 }
 
 void Skeleton::drawSkeleton(mat4 view, mat4 projection, vec4 viewPosition = vec4(0.0f, 0.0f, 0.0f, 0.0f))
@@ -353,7 +368,7 @@ void Skeleton::moveTo(vec3 position)
 	bones[2]->pivotJoint(1.0f * radians(theta1));
 
 	vec3 start_position = vec3(-2.5f, 7.5f, 0.0f);
-	analyticalIK(position - start_position, 5.0f, 5.0f, theta1, theta2);
+	//analyticalIK(position - start_position, 5.0f, 5.0f, theta1, theta2, theta3);
 
 	// Rotate bones
 	bones[2]->pivotJoint(-1.0f * radians(theta1));
@@ -403,17 +418,202 @@ vec3 Skeleton::getRootPosition()
 	return rootBone->getGlobalPosition();
 }
 
-void Skeleton::jumpLamp(GLfloat time, bool first)
+void Skeleton::preAndPostJumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
 {
-	if (first)
+	if (time <= timeChange)
+	{
+		jumpHead[0] = jumpHead[3] = bones[HEAD]->getGlobalPosition();
+		jumpHead[1] = jumpHead[2] = jumpHead[0] - rootBone->upVector * 1.5f;
+	}
+
+	if (time == 0.0f)
+	{
+		if (animationMode == PRE_JUMP)
+			animationMode = DO_JUMP;
+		else
+			animationMode = IDLE;
+	}
+
+	vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
+
+	// Undo previous rotation
+	bones[LOWER_ARM]->bendJoint(-1.0f * radians(theta1));
+	bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+	bones[LOWER_ARM]->pivotJoint(-1.0f * radians(theta3));
+
+	//Check the first parameter of this
+	analyticalIK(head_position - rootBone->getGlobalPosition(), 3.15f, 3.0f, theta1, theta2, theta3, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+
+	bones[LOWER_ARM]->pivotJoint(1.0f * radians(theta3));
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
+}
+
+void Skeleton::jumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+{
+	if (time <= timeChange)
 	{
 		jumpBase[0] = jumpBase[3] = rootBone->getGlobalPosition();
 		jumpBase[1] = jumpBase[2] = jumpBase[0] + vec3(0.0f, 5.0f, 0.0f);
+		
 		jumpHead[0] = jumpHead[3] = bones[HEAD]->getGlobalPosition();
-		jumpHead[1] = jumpHead[0] + rootBone->forwardVector * 1.5f - rootBone->upVector * 2.3f;
-		jumpHead[2] = jumpHead[0] + rootBone->forwardVector * 0.8f + rootBone->upVector * 3.5f;
+		jumpHead[1] = jumpHead[2] = jumpHead[0] + rootBone->upVector * 6.0f;
 	}
+
+	if (time == 0.0f)
+	{
+		animationMode = POST_JUMP;
+	}
+
 	rootBone->setPosition(vec4(splinePositionBezier(jumpBase[0], jumpBase[1], jumpBase[2], jumpBase[3], time), 0.0f));
 	//bones[HEAD]->setPosition(vec4(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), 0.0f));
-	CCDIK(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), HEAD, LOWER_ARM, bones);
+	vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
+
+	// Undo previous rotation
+	bones[LOWER_ARM]->bendJoint(-1.0f * radians(theta1));
+	bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+	bones[LOWER_ARM]->pivotJoint(-1.0f * radians(theta3));
+
+	analyticalIK(head_position - rootBone->getGlobalPosition(), 3.15f, 3.0f, theta1, theta2, theta3, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+
+	bones[LOWER_ARM]->pivotJoint(1.0f * radians(theta3));
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
+
+	//CCDIK(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), HEAD, LOWER_ARM, bones);
 }
+
+void Skeleton::preAndPostJumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+{
+	if (time <= timeChange)
+	{
+		jumpHead[0] = bones[HEAD]->getGlobalPosition();
+		jumpHead[1] = jumpHead[2] = jumpHead[0] - rootBone->upVector * 1.5f;
+		jumpHead[3] = jumpHead[0] + rootBone->forwardVector * 0.5f;
+	}
+
+	if (time == 0.0f)
+	{
+		if (animationMode == PRE_JUMP_FORWARD)
+			animationMode = JUMP_FORWARD;
+		else
+			animationMode = IDLE;
+	}
+
+	vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
+
+	// Undo previous rotation
+	bones[LOWER_ARM]->bendJoint(-1.0f * radians(theta1));
+	bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+	bones[LOWER_ARM]->pivotJoint(-1.0f * radians(theta3));
+
+	//Check the first parameter of this
+	analyticalIK(head_position - rootBone->getGlobalPosition(), 3.15f, 3.0f, theta1, theta2, theta3, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+
+	bones[LOWER_ARM]->pivotJoint(1.0f * radians(theta3));
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
+}
+
+void Skeleton::jumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+{
+	if (time <= timeChange)
+	{
+		jumpBase[0] = rootBone->getGlobalPosition();
+		jumpBase[3] = jumpBase[0] + rootBone->forwardVector * 2.0f;
+		jumpBase[1] = jumpBase[0] + vec3(0.0f, 5.0f, 0.0f);
+		jumpBase[2] = jumpBase[3] + vec3(0.0f, 5.0f, 0.0f);
+
+		jumpHead[0] = bones[HEAD]->getGlobalPosition();
+		jumpHead[3] = jumpHead[0] + rootBone->forwardVector * 1.0f;
+		jumpHead[1] = jumpHead[0] + rootBone->upVector * 6.0f;
+		jumpHead[2] = jumpHead[3] + rootBone->upVector * 6.0f;
+	}
+
+	if (time == 0.0f)
+	{
+		animationMode = POST_JUMP_FORWARD;
+	}
+
+	rootBone->setPosition(vec4(splinePositionBezier(jumpBase[0], jumpBase[1], jumpBase[2], jumpBase[3], time), 0.0f));
+	//bones[HEAD]->setPosition(vec4(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), 0.0f));
+	vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
+
+	// Undo previous rotation
+	bones[LOWER_ARM]->bendJoint(-1.0f * radians(theta1));
+	bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+	bones[LOWER_ARM]->pivotJoint(-1.0f * radians(theta3));
+
+	analyticalIK(head_position - rootBone->getGlobalPosition(), 3.15f, 3.0f, theta1, theta2, theta3, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+
+	bones[LOWER_ARM]->pivotJoint(1.0f * radians(theta3));
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
+
+	//CCDIK(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), HEAD, LOWER_ARM, bones);
+}
+
+/*void Skeleton::lookLeftLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+{
+	if (time <= timeChange)
+	{
+		lookPoints[0] = lookPoints[3] = bones[LIGHT]->getGlobalPosition();
+		lookPoints[1] = lookPoints[0] - rootBone->rightVector * 1.5f + rootBone->upVector * 0.5f;
+		lookPoints[2] = lookPoints[0] - rootBone->forwardVector * 1.0f -rootBone->rightVector * 2.0f + rootBone->upVector * 0.5f;
+
+		//bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+		//bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+	}
+
+	if (time == 0.0f)
+	{
+		animationMode = IDLE;
+	}
+
+	//bones[HEAD]->setPosition(vec4(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), 0.0f));
+	vec3 light_position = splinePositionBezier(lookPoints[0], lookPoints[1], lookPoints[2], lookPoints[3], time);
+
+	// Undo previous rotation
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[HEAD]->bendJoint(1.0f * radians(theta5));
+	bones[UPPER_ARM]->pivotJoint(-1.0f * radians(theta6));
+
+	analyticalIK(light_position - bones[UPPER_ARM]->getGlobalPosition(), 3.0f, 1.0f, theta2, theta5, theta6, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+	theta2 = 90 + theta2;
+
+
+	bones[UPPER_ARM]->pivotJoint(1.0f * radians(theta6));
+	bones[HEAD]->bendJoint(-1.0f * radians(theta5));
+	bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+
+	//CCDIK(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), HEAD, LOWER_ARM, bones);
+}
+
+void Skeleton::lookRightLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+{
+	if (time <= timeChange)
+	{
+		lookPoints[0] = lookPoints[3] = bones[LIGHT]->getGlobalPosition();
+		lookPoints[1] = lookPoints[0] + rootBone->rightVector * 1.5f + rootBone->upVector * 0.5f;
+		lookPoints[2] = lookPoints[0] - rootBone->forwardVector * 1.0f + rootBone->rightVector * 2.0f + rootBone->upVector * 0.5f;
+	}
+
+	if (time == 0.0f)
+	{
+		animationMode = IDLE;
+	}
+
+	//bones[HEAD]->setPosition(vec4(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), 0.0f));
+	vec3 light_position = splinePositionBezier(lookPoints[0], lookPoints[1], lookPoints[2], lookPoints[3], time);
+
+	// Undo previous rotation
+	bones[UPPER_ARM]->bendJoint(-1.0f * radians(theta2));
+	bones[HEAD]->bendJoint(1.0f * radians(theta5));
+	bones[UPPER_ARM]->pivotJoint(-1.0f * radians(theta6));
+
+	analyticalIK(light_position - bones[UPPER_ARM]->getGlobalPosition(), 3.0f, 1.0f, theta2, theta5, theta6, rootBone->forwardVector, rootBone->rightVector, rootBone->upVector);
+
+	bones[UPPER_ARM]->pivotJoint(1.0f * radians(theta6));
+	bones[HEAD]->bendJoint(-1.0f * radians(theta5));
+	bones[UPPER_ARM]->bendJoint(1.0f * radians(theta2));
+}*/
