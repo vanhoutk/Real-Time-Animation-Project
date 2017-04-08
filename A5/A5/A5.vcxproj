@@ -156,6 +156,7 @@
     <ClInclude Include="Bone.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="InverseKinematics.h" />
+    <ClInclude Include="LightParticle.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="PlaneRotation.h" />

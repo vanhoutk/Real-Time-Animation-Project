@@ -1,7 +1,9 @@
 ﻿  main.cpp
+e:\users\kris\documents\college\fifth year onedrive\onedrive\fifth year - computers\cs7033 - real-time animation\assignments\code\real-time-animation-project\a5\a5\LightParticle.h(81): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
+e:\users\kris\documents\college\fifth year onedrive\onedrive\fifth year - computers\cs7033 - real-time animation\assignments\code\real-time-animation-project\a5\a5\LightParticle.h(82): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data
   Generating code
-  3 of 498 functions ( 0.6%) were compiled, the rest were copied from previous compilation.
+  2 of 667 functions ( 0.3%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    1 functions had inline decision re-evaluated but remain unchanged
+    23 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   A5.vcxproj -> E:\Users\Kris\Documents\College\Fifth Year OneDrive\OneDrive\Fifth Year - Computers\CS7033 - Real-time Animation\Assignments\Code\Real-Time-Animation-Project\A5\Release\A5.exe

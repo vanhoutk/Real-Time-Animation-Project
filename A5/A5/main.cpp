@@ -15,10 +15,12 @@
 
 #include "Antons_maths_funcs.h" // Anton's maths functions
 #include "Camera.h"
+#include "LightParticle.h"
 #include "Mesh.h"
 #include "PlaneRotation.h"
 #include "Shader_Functions.h"
 #include "Skeleton.h"
+#include "text.h"
 #include "time.h"
 
 using namespace std;
@@ -28,35 +30,45 @@ using namespace std;
 */
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))  // Macro for indexing vertex buffer
 
-#define NUM_MESHES   6
+#define NUM_MESHES   7
 #define NUM_SHADERS	 5
-#define NUM_TEXTURES 1
+#define NUM_TEXTURES 2
 
 bool firstMouse = true;
 bool forwardAnimation = true;
 bool keys[1024];
 Camera camera(vec3(-1.5f, 2.0f, 30.0f));
 enum Bezier { WAVE, CURVE };
+enum GameStates { TITLE, INTRO, GAME };
+enum LampModes { LAMP_ON, LAMP_OFF };
 enum Meshes { LAMP_BASE_MESH, LAMP_ARM_LOWER_MESH, LAMP_ARM_UPPER_MESH, LAMP_HEAD_MESH, LAMP_LIGHT_MESH, LIGHT_MESH, GROUND_MESH };
 enum Shaders { SKYBOX, BASIC_COLOUR_SHADER, BASIC_TEXTURE_SHADER, LIGHT_SHADER, LIGHT_TEXTURE_SHADER };
-enum Textures { METAL_TEXTURE };
+enum Textures { METAL_TEXTURE, WOOD_TEXTURE };
 GLfloat cameraDistance = 20.0f;
-GLfloat cameraPitch = 0.0f;
+GLfloat cameraPitch = 0.5f;
 GLfloat cameraSpeed = 0.005f;
-GLfloat cameraYaw = 0.0f;
+GLfloat cameraYaw = 2.4f;
 GLfloat movementSpeed = 0.1f;
 GLfloat currentTime = 0.0f;
-GLfloat timeChange = 0.002f;
+GLfloat timeChange = 0.01f;
+GLfloat introTime = timeChange * 60 * 30;
 GLfloat yOffset = 3.0f;
 GLuint animationMode = IDLE;
 GLuint bezierCurve = CURVE;
+GLuint currentIntroText = 0;
+GLuint gameState = TITLE;
+GLuint lampMode = LAMP_OFF;
+GLuint numIntroTexts = 5;
 GLuint lastX = 400, lastY = 300;
 GLuint shaderProgramID[NUM_SHADERS];
+int titleText[2], introText[5], gameText[2];
 int screenWidth = 1000;
 int screenHeight = 800;
+LightParticle light;
 Mesh lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh, lightMesh, groundMesh;
 Skeleton lampSkeleton;
 vec3 lampPosition = vec3(0.0f, 0.0f, 0.0f);
+vec4 lampLight[2] = { vec4(0.0f, 0.0f, 0.0f, 0.8f), vec4(0.85f, 0.75f, 0.0f, 0.5f) };
 vec3 spherePosition;// = vec3(-9.0f, 10.0f, 0.0f);
 // | Spline points
 vec3 p1 = vec3(-10.0f, 8.0f, 0.0f);
@@ -69,131 +81,159 @@ vec3 curve1[4] = { vec3(-6.0f, 6.0f, 4.0f), vec3(-9.0f, 6.0f, 4.0f), vec3(-9.0f,
 vec3 curve2[4] = { vec3(-6.0f, 10.0f, 4.0f), vec3(-3.0f, 10.0f, 4.0f), vec3(-3.0f, 6.0f, 4.0f), vec3(-6.0f, 6.0f, 4.0f) };
 
 // | Resource Locations
-const char * meshFiles[NUM_MESHES] = { "../Meshes/lamp_base.dae", "../Meshes/lamp_arm.dae", "../Meshes/lamp_arm_upper.dae", "../Meshes/lamp_head.obj", "../Meshes/lamp_light.obj", "../Meshes/particle.dae" };
+const char * meshFiles[NUM_MESHES] = { "../Meshes/lamp_base.dae", "../Meshes/lamp_arm.dae", "../Meshes/lamp_arm_upper.dae", "../Meshes/lamp_head.obj", "../Meshes/lamp_light.obj", "../Meshes/particle.dae", "../Meshes/plane.dae" };
 const char * skyboxTextureFiles[6] = { "../Textures/TCWposx.png", "../Textures/TCWnegx.png", "../Textures/TCWposy.png", "../Textures/TCWnegy.png", "../Textures/TCWposz.png", "../Textures/TCWnegz.png" };
-const char * textureFiles[NUM_TEXTURES] = { "../Textures/metal.jpg" };
+const char * textureFiles[NUM_TEXTURES] = { "../Textures/metal.jpg", "../Textures/wood.jpg" };
 
 const char * vertexShaderNames[NUM_SHADERS] = { "../Shaders/SkyboxVertexShader.txt", "../Shaders/ParticleVertexShader.txt", "../Shaders/BasicTextureVertexShader.txt", "../Shaders/LightVertexShader.txt", "../Shaders/LightTextureVertexShader.txt" };
 const char * fragmentShaderNames[NUM_SHADERS] = { "../Shaders/SkyboxFragmentShader.txt", "../Shaders/ParticleFragmentShader.txt", "../Shaders/BasicTextureFragmentShader.txt", "../Shaders/LightFragmentShader.txt", "../Shaders/LightTextureFragmentShader.txt" };
+
+void initText()
+{
+	titleText[0] = add_text("The lamp who lost its light", -0.9f, 0.3f, 70.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+	centre_text(titleText[0], 0.5f, 0.4f);
+	titleText[1] = add_text("Continue...", -0.95f, 0.9f, 60.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+	centre_text(titleText[1], 0.5f, -0.2f);
+
+	introText[0] = add_text("Once upon a time, \nthere was a small white lamp...", -0.95f, 0.95f, 50.0f, 1.0f, 1.0f, 1.0f, 0.0f);
+	introText[1] = add_text("...and like most lamps are want to do, \nthis lamp wanted to light up the world.", -0.95f, 0.95f, 50.0f, 1.0f, 1.0f, 1.0f, 0.0f);
+	introText[2] = add_text("Unfortunately, despite trying its best, \nthe lamp had one little problem...", -0.95f, 0.95f, 50.0f, 1.0f, 1.0f, 1.0f, 0.0f);
+	introText[3] = add_text("It kept losing its light.", -0.95f, 0.95f, 50.0f, 1.0f, 1.0f, 1.0f, 0.0f);
+	introText[4] = add_text("This is the story of its quest to keep it.", -0.95f, 0.95f, 50.0f, 1.0f, 1.0f, 1.0f, 0.0f);
+	centre_text(introText[0], 0.5f, 0.2f);
+	centre_text(introText[1], 0.5f, 0.2f);
+	centre_text(introText[2], 0.5f, 0.2f);
+	centre_text(introText[3], 0.5f, 0.2f);
+	centre_text(introText[4], 0.5f, 0.2f);
+
+	//gameText[0] = add_text("The lamp who lost its light", -0.95f, 0.95f, 25.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+	//gameText[1] = add_text("Continue...", -0.95f, 0.9f, 25.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+}
+
+void changeGameState(int state)
+{
+	switch (state)
+	{
+	case INTRO:
+		for (int i = 0; i < sizeof(titleText); i++)
+			change_text_colour(titleText[i], 1.0f, 1.0f, 1.0f, 0.0f);
+		change_text_colour(introText[0], 1.0f, 1.0f, 1.0f, 1.0f);
+
+		gameState = INTRO;
+		break;
+	case GAME:
+		gameState = GAME;
+		break;
+	}
+}
 
 void display()
 {
 	// Tell GL to only draw onto a pixel if the shape is closer to the viewer
 	glEnable(GL_DEPTH_TEST);	// Enable depth-testing
 	glDepthFunc(GL_LESS);		// Depth-testing interprets a smaller value as "closer"
-	glClearColor(5.0f / 255.0f, 1.0f / 255.0f, 15.0f / 255.0f, 1.0f);
+	glClearColor(0.0f / 255.0f, 0.0f / 255.0f, 0.0f / 255.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// Set the view matrix to first or third person views
-	mat4 view = look_at(camera.Position, lampPosition + vec3(0.0f, yOffset, 0.0f), camera.WorldUp);//  camera.GetViewMatrix();
+	switch (gameState)
+	{
+	case TITLE:
+		break;
+	case INTRO:
+		break;
+	case GAME:
+		mat4 view = look_at(camera.Position, lampPosition + vec3(0.0f, yOffset, 0.0f), camera.WorldUp);//  camera.GetViewMatrix();
+		mat4 projection = perspective(camera.Zoom, (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
+		vec4 view_position = vec4(camera.Position.v[0], camera.Position.v[1], camera.Position.v[2], 0.0f);
+		lampSkeleton.drawSkeleton(view, projection, view_position);
 
-	// Projection Matrix
-	mat4 projection = perspective(camera.Zoom, (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
-	
-	// Model Matrix
-	//mat4 model = translate(identity_mat4(), lampPosition);
+		if (light.active)
+			light.drawParticle(view, projection, view_position);
 
-	vec4 view_position = vec4(camera.Position.v[0], camera.Position.v[1], camera.Position.v[2], 0.0f);
+		mat4 ground_model = scale(identity_mat4(), vec3(100.0f, 0.0f, 100.0f));
+		groundMesh.drawMesh(view, projection, ground_model, vec4(0.0f, 0.0f, 0.0f, 1.0f), view_position);
 
-	//lampBaseMesh.drawMesh(view, projection, model, vec4(1.0f, 1.0f, 1.0f, 1.0f), view_position);
-	//lampArmMesh.drawMesh(view, projection, model, vec4(1.0f, 1.0f, 1.0f, 1.0f), view_position);
-	//lampHeadMesh.drawMesh(view, projection, model, vec4(1.0f, 1.0f, 1.0f, 1.0f), view_position);
-	//lampLightMesh.drawMesh(view, projection, model, vec4(0.9f, 0.9f, 0.0f, 0.75f), view_position);
-	lampSkeleton.drawSkeleton(view, projection, view_position);
+		break;
+	}
+
+	draw_texts();
 
 	glutSwapBuffers();
 }
 
 void processInput()
 {
-	if (animationMode == IDLE)
+	switch (gameState)
 	{
-		if (keys[GLUT_KEY_UP])
+	case GAME:
+		if (animationMode == IDLE)
 		{
-			animationMode = PRE_JUMP_FORWARD;
-			//lampSkeleton.moveLamp(MOVE_FORWARD, movementSpeed);
-		}
-		if (keys[GLUT_KEY_DOWN])
-			lampSkeleton.moveLamp(MOVE_BACKWARD, movementSpeed);
-		if (keys[GLUT_KEY_LEFT])
-			lampSkeleton.turnLamp(TURN_LEFT, movementSpeed / 10.0f);
-		if (keys[GLUT_KEY_RIGHT])
-			lampSkeleton.turnLamp(TURN_RIGHT, movementSpeed / 10.0f);
+			if (keys[GLUT_KEY_UP])
+			{
+				animationMode = PRE_JUMP_FORWARD;
+				//lampSkeleton.moveLamp(MOVE_FORWARD, movementSpeed);
+			}
+			if (keys[GLUT_KEY_DOWN])
+				lampSkeleton.moveLamp(MOVE_BACKWARD, movementSpeed);
+			if (keys[GLUT_KEY_LEFT])
+				lampSkeleton.turnLamp(TURN_LEFT, movementSpeed / 10.0f);
+			if (keys[GLUT_KEY_RIGHT])
+				lampSkeleton.turnLamp(TURN_RIGHT, movementSpeed / 10.0f);
 
-		if (keys['v'])
+			if (keys['v'])
+			{
+				animationMode = PRE_JUMP;
+			}
+			else if (keys['b'])
+			{
+				animationMode = LOOK_LEFT;
+			}
+		}
+
+		if (keys['u'])
 		{
-			animationMode = PRE_JUMP;
+			cameraPitch += cameraSpeed;
+			if (cameraPitch > 1.57f)
+				cameraPitch = 1.57f;
 		}
-		else if (keys['b'])
-		{
-			animationMode = LOOK_LEFT;
-		}
-	}
-
-	if (keys['u'])
-	{
-		cameraPitch += cameraSpeed;
-		if (cameraPitch > 1.57f)
-			cameraPitch = 1.57f;
-	}
-	if (keys['j'])
-	{
-		cameraPitch -= cameraSpeed;
-		if (cameraPitch < 0.0f)
-			cameraPitch = 0.0f;
-	}
-	if (keys['h'])
-		cameraYaw -= cameraSpeed;
-	if (keys['k'])
-		cameraYaw += cameraSpeed;
-
-	// Move the sphere position around manually
-	/*if (animationMode == CCD_IK_MANUAL || animationMode == CCD_IK_MANUAL_FINGER)
-	{
-		if (keys['p'])
-			spherePosition += vec3(0.01f, 0.0f, 0.0f);
-		if (keys['o'])
-			spherePosition += vec3(0.0f, 0.01f, 0.0f);
-		if (keys['l'])
-			spherePosition += vec3(0.0f, -0.01f, 0.0f);
-		if (keys['i'])
-			spherePosition += vec3(-0.01f, 0.0f, 0.0f);
 		if (keys['j'])
-			spherePosition += vec3(0.0f, 0.0f, 0.01f);
+		{
+			cameraPitch -= cameraSpeed;
+			if (cameraPitch < 0.0f)
+				cameraPitch = 0.0f;
+		}
+		if (keys['h'])
+			cameraYaw -= cameraSpeed;
 		if (keys['k'])
-			spherePosition += vec3(0.0f, 0.0f, -0.01f);
-	}*/
+			cameraYaw += cameraSpeed;
 
-	// Change animation mode
-	/*if (keys['1'])
-		animationMode = ROTATE_HAND;
-	if (keys['2'])
-		animationMode = CLOSE_FIST;
-	if (keys['3'])
-		animationMode = OPEN_FIST;
-	if (keys['4'])
-		animationMode = CLOSE_AND_OPEN_FIST;
-	//if (keys['5'])
-		//animationMode = ANALYTICAL_IK_2D;
-	if (keys['6'])
-		animationMode = CCD_IK_MANUAL;
-	if (keys['7'])
-		animationMode = CCD_IK_SPLINE;
-	if (keys['8'])
-		animationMode = CCD_IK_MANUAL_FINGER;
-	if (keys['9'])
-		animationMode = CCD_IK_SPLINE_FINGER;
-	if (keys['0'])
-		animationMode = -1;
+		if (keys['o'])
+			light.respawnParticle(lampPosition + vec3(0.0f, 5.0f, 0.0f));
 
-	if (keys['n'])
-		bezierCurve = WAVE;
-	if (keys['m'])
-		bezierCurve = CURVE;*/
+		break;
+	}
 
 	// Close the window if 'Esc' is pressed
 	if (keys[(char)27])
 		exit(0);
+}
+
+void updateIntro()
+{
+	if (currentTime <= introTime)
+		currentTime += timeChange;
+	else
+	{
+		currentTime = 0.0f;
+
+		change_text_colour(introText[currentIntroText], 1.0f, 1.0f, 1.0f, 0.0f);
+		currentIntroText++;
+
+		if (currentIntroText >= numIntroTexts)
+			changeGameState(GAME);
+		else
+			change_text_colour(introText[currentIntroText], 1.0f, 1.0f, 1.0f, 1.0f);
+	}
 }
 
 void updateAnimation()
@@ -252,12 +292,28 @@ void updateAnimation()
 
 void updateScene()
 {
-	if(animationMode != IDLE)
-		updateAnimation();
-
 	processInput();
-	lampPosition = lampSkeleton.getRootPosition();
-	camera.UpdateCamera3rdPerson(cameraPitch, cameraYaw, lampPosition, cameraDistance, yOffset);
+
+	switch (gameState)
+	{
+	case TITLE:
+		break;
+	case INTRO:
+		updateIntro();
+		break;
+	case GAME:
+		if (animationMode != IDLE)
+			updateAnimation();
+
+		if (light.active)
+			light.updatePosition();
+
+		lampPosition = lampSkeleton.getRootPosition();
+		camera.UpdateCamera3rdPerson(cameraPitch, cameraYaw, lampPosition, cameraDistance, yOffset);
+
+		break;
+	}
+	
 	// Draw the next frame
 	glutPostRedisplay();
 }
@@ -282,12 +338,21 @@ void initialiseMeshes()
 	lightMesh = Mesh(&shaderProgramID[LIGHT_SHADER]);
 	lightMesh.generateObjectBufferMesh(meshFiles[LIGHT_MESH]);
 
-	//groundMesh = Mesh(&shaderProgramID[LIGHT_TEXTURE_SHADER]);
-	//groundMesh.generateObjectBufferMesh(meshFiles[GROUND_MESH]);
+	groundMesh = Mesh(&shaderProgramID[LIGHT_TEXTURE_SHADER]);
+	groundMesh.generateObjectBufferMesh(meshFiles[GROUND_MESH]);
+	groundMesh.loadTexture(textureFiles[WOOD_TEXTURE]);
 }
 
 void init()
 {
+	// Initialise the text rendering and display
+	if (!init_text_rendering("../Textures/SpiraxReg.png", "../Textures/SpiraxReg.meta", screenWidth, screenHeight))
+	{
+		fprintf(stderr, "ERROR init text rendering\n");
+		exit(1);
+	}
+	initText();
+
 	// Compile the shaders
 	for (int i = 0; i < NUM_SHADERS; i++)
 	{
@@ -297,9 +362,10 @@ void init()
 	// Create all of the meshes
 	initialiseMeshes();
 
-	//handSkeleton.createRightHand(handMesh, handShellMesh, fingerJointMesh, jointShellMesh, fingerTipMesh, tipShellMesh);
-	//torsoSkeleton.createTorso(torsoMesh, shouldersMesh, shouldersShellMesh, upperArmShellMesh, lowerArmShellMesh, handMesh, handShellMesh, fingerJointMesh, jointShellMesh, fingerTipMesh, tipShellMesh);
 	lampSkeleton.createLamp(lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh);
+	lampSkeleton.light_colour = lampLight[lampMode];
+
+	light = LightParticle(false, 1.0f, lightMesh, vec3(), vec3(), vec3(), vec4(0.85f, 0.75f, 0.0f, 0.5f));
 }
 
 /*
@@ -327,7 +393,16 @@ void releaseSpecialKeys(int key, int x, int y)
 }
 
 void mouseClick(int button, int state, int x, int y)
-{}
+{
+	if (state == GLUT_DOWN)
+	{
+		if (gameState == TITLE)
+		{
+			if (x > 370 && x < 620 && y > 500 && y < 560)
+				changeGameState(INTRO);
+		}
+	}
+}
 
 void processMouse(int x, int y)
 {
@@ -338,13 +413,23 @@ void processMouse(int x, int y)
 		firstMouse = false;
 	}
 
-	int xoffset = x - lastX;
+	switch (gameState)
+	{
+	case TITLE:
+		if(x > 370 && x < 620 && y > 500 && y < 560)
+			change_text_colour(titleText[1], 0.388f, 1.0f, 1.0f, 0.8f);
+		else
+			change_text_colour(titleText[1], 1.0f, 1.0f, 1.0f, 1.0f);
+		break;
+	}
+
+	/*int xoffset = x - lastX;
 	int yoffset = lastY - y;
 
 	lastX = x;
 	lastY = y;
 
-	camera.ProcessMouseMovement((GLfloat)xoffset, (GLfloat)yoffset);
+	camera.ProcessMouseMovement((GLfloat)xoffset, (GLfloat)yoffset);*/
 }
 
 void mouseWheel(int button, int dir, int x, int y)
@@ -368,7 +453,7 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	glutInitWindowSize(screenWidth, screenHeight);
 	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH) - screenWidth) / 2, (glutGet(GLUT_SCREEN_HEIGHT) - screenHeight) / 4);
-	glutCreateWindow("Hand Hierarchy");
+	glutCreateWindow("The lamp who lost its light");
 
 	// Glut display and update functions
 	glutDisplayFunc(display);
