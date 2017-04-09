@@ -47,7 +47,7 @@ enum LampModes { LAMP_ON, LAMP_OFF };
 enum Meshes { LAMP_BASE_MESH, LAMP_ARM_LOWER_MESH, LAMP_ARM_UPPER_MESH, LAMP_HEAD_MESH, LAMP_LIGHT_MESH, LIGHT_MESH, GROUND_MESH };
 enum Shaders { SKYBOX, BASIC_COLOUR_SHADER, BASIC_TEXTURE_SHADER, LIGHT_SHADER, LIGHT_TEXTURE_SHADER };
 enum Textures { METAL_TEXTURE, WOOD_TEXTURE };
-GLfloat animationTime = 2.0f;
+GLfloat animationTime = 0.75f;
 GLfloat cameraDistance = 20.0f, cameraPitch = 0.5f, cameraSpeed = 0.005f, cameraYaw = 2.4f;
 GLfloat movementSpeed = 0.1f;
 //GLfloat currentTime = 0.0f;
@@ -69,7 +69,8 @@ LightParticle light;
 Mesh lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh, lightMesh, groundMesh;
 Skeleton lampSkeleton;
 time_t startTime;
-time_point<system_clock, milliseconds> currentTime;
+//time_point<system_clock, milliseconds> currentTime;
+long currentTime;
 vec3 lampPosition = vec3(0.0f, 0.0f, 0.0f);
 vec4 lampLight[2] = { vec4(0.0f, 0.0f, 0.0f, 0.8f), vec4(0.85f, 0.75f, 0.0f, 0.5f) };
 vec3 spherePosition;// = vec3(-9.0f, 10.0f, 0.0f);
@@ -111,6 +112,19 @@ void initText()
 
 	//gameText[0] = add_text("The lamp who lost its light", -0.95f, 0.95f, 25.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 	//gameText[1] = add_text("Continue...", -0.95f, 0.9f, 25.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+}
+
+long long milliseconds_now() {
+	static LARGE_INTEGER s_frequency;
+	static BOOL s_use_qpc = QueryPerformanceFrequency(&s_frequency);
+	if (s_use_qpc) {
+		LARGE_INTEGER now;
+		QueryPerformanceCounter(&now);
+		return (1000LL * now.QuadPart) / s_frequency.QuadPart;
+	}
+	else {
+		return GetTickCount();
+	}
 }
 
 void changeGameState(int state)
@@ -247,12 +261,14 @@ void updateIntro()
 void updateAnimation()
 {
 	//if (firstAnimation) startTime = system_clock::to_time_t(system_clock::now()); //startTime = time(0);
-	if (firstAnimation) 
-		currentTime = time_point_cast<milliseconds>(system_clock::now()); //startTime = time(0);
+	//if (firstAnimation) 
+	//	currentTime = time_point_cast<milliseconds>(system_clock::now()); //startTime = time(0);
+	if (firstAnimation) currentTime = milliseconds_now();
 
 
 	//double seconds_since_start = (system_clock::to_time_t(system_clock::now()), startTime);
-	GLfloat seconds_since_start = (GLfloat)(system_clock::now() - currentTime).count();
+	//GLfloat seconds_since_start = (GLfloat)(system_clock::now() - currentTime).count();
+	long milliseconds_since_start = milliseconds_now() - currentTime;
 	//if (seconds_since_start > animationTime)
 	//{
 	//	startTime = time(0);
@@ -267,7 +283,12 @@ void updateAnimation()
 		//animationMode = -1;
 	}*/
 
-	GLfloat current_time = (GLfloat)seconds_since_start / (1000.0f * animationTime);
+	GLfloat current_time = (GLfloat)milliseconds_since_start / (1000.0f * animationTime);
+
+	if (current_time > 1.5f)
+	{
+		cout << "Now" << endl;
+	}
 
 	switch (animationMode)
 	{

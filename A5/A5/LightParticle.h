@@ -6,6 +6,7 @@
 
 GLfloat deltaTime = 1.0f / 60.0f;
 GLfloat friction = 0.0f;
+GLfloat gravityFactor = 0.2f;
 GLfloat restitution = 1.0f;
 vec3 gravity = vec3(0.0f, -9.81f, 0.0f);
 vec3 groundVector = vec3(0.0f, 0.0f, 0.0f);
@@ -78,8 +79,8 @@ void LightParticle::respawnParticle(vec3 position)
 {
 	active = true;
 	this->position = position;
-	float randomX = (rand() % 100 - 50) / 50.0f;
-	float randomZ = (rand() % 100 - 50) / 50.0f;
+	float randomX = (rand() % 100 - 50) / 100.0f;
+	float randomZ = (rand() % 100 - 50) / 100.0f;
 	this->velocity = vec3(randomZ, 0.0f, randomX);
 }
 
@@ -88,7 +89,7 @@ void LightParticle::respawnParticle(vec3 position)
 void LightParticle::updatePosition()
 {
 	// Update forces
-	force = gravity * mass;
+	force = gravity * gravityFactor * mass;
 
 	// Update the velocity
 	velocity += (force / mass) * deltaTime;
