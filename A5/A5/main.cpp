@@ -43,7 +43,7 @@ bool keys[1024];
 Camera camera(vec3(-1.5f, 2.0f, 30.0f));
 enum Bezier { WAVE, CURVE };
 enum GameStates { TITLE, INTRO, GAME };
-enum LampModes { LAMP_ON, LAMP_OFF };
+enum LampModes { LAMP_OFF, LAMP_ON };
 enum Meshes { LAMP_BASE_MESH, LAMP_ARM_LOWER_MESH, LAMP_ARM_UPPER_MESH, LAMP_HEAD_MESH, LAMP_LIGHT_MESH, LIGHT_MESH, GROUND_MESH };
 enum Shaders { SKYBOX, BASIC_COLOUR_SHADER, BASIC_TEXTURE_SHADER, LIGHT_SHADER, LIGHT_TEXTURE_SHADER };
 enum Textures { METAL_TEXTURE, WOOD_TEXTURE };
@@ -58,7 +58,7 @@ GLuint animationMode = IDLE;
 GLuint bezierCurve = CURVE;
 GLuint currentIntroText = 0;
 GLuint gameState = GAME;
-GLuint lampMode = LAMP_OFF;
+GLuint lampMode = LAMP_ON;
 GLuint numIntroTexts = 5;
 GLuint lastX = 400, lastY = 300;
 GLuint shaderProgramID[NUM_SHADERS];
@@ -66,11 +66,11 @@ int titleText[2], introText[5], gameText[2];
 int screenWidth = 1000;
 int screenHeight = 800;
 LightParticle light;
+long currentTime, lightTimer;
 Mesh lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh, lightMesh, groundMesh;
 Skeleton lampSkeleton;
 time_t startTime;
 //time_point<system_clock, milliseconds> currentTime;
-long currentTime;
 vec3 lampPosition = vec3(0.0f, 0.0f, 0.0f);
 vec4 lampLight[2] = { vec4(0.0f, 0.0f, 0.0f, 0.8f), vec4(0.85f, 0.75f, 0.0f, 0.5f) };
 vec3 spherePosition;// = vec3(-9.0f, 10.0f, 0.0f);
@@ -160,7 +160,8 @@ void display()
 	case INTRO:
 		break;
 	case GAME:
-		mat4 view = look_at(camera.Position, lampPosition + vec3(0.0f, yOffset, 0.0f), camera.WorldUp);//  camera.GetViewMatrix();
+		//mat4 view = look_at(camera.Position, lampPosition + vec3(0.0f, yOffset, 0.0f), camera.WorldUp);//  camera.GetViewMatrix();
+		mat4 view = look_at(camera.Position, vec3(lampPosition.v[0], yOffset, lampPosition.v[2]), camera.WorldUp);//  camera.GetViewMatrix();
 		mat4 projection = perspective(camera.Zoom, (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
 		vec4 view_position = vec4(camera.Position.v[0], camera.Position.v[1], camera.Position.v[2], 0.0f);
 		lampSkeleton.drawSkeleton(view, projection, view_position);
@@ -228,7 +229,12 @@ void processInput()
 			cameraYaw += cameraSpeed;
 
 		if (keys['o'])
+		{
 			light.respawnParticle(lampPosition + vec3(0.0f, 5.0f, 0.0f));
+			lightTimer = (long)milliseconds_now();
+			lampMode = LAMP_OFF;
+			lampSkeleton.setLightColour(lampLight[lampMode]);
+		}
 
 		break;
 	}
@@ -263,12 +269,12 @@ void updateAnimation()
 	//if (firstAnimation) startTime = system_clock::to_time_t(system_clock::now()); //startTime = time(0);
 	//if (firstAnimation) 
 	//	currentTime = time_point_cast<milliseconds>(system_clock::now()); //startTime = time(0);
-	if (firstAnimation) currentTime = milliseconds_now();
+	if (firstAnimation) currentTime = (long)milliseconds_now();
 
 
 	//double seconds_since_start = (system_clock::to_time_t(system_clock::now()), startTime);
 	//GLfloat seconds_since_start = (GLfloat)(system_clock::now() - currentTime).count();
-	long milliseconds_since_start = milliseconds_now() - currentTime;
+	long milliseconds_since_start = (long)milliseconds_now() - currentTime;
 	//if (seconds_since_start > animationTime)
 	//{
 	//	startTime = time(0);
@@ -284,11 +290,6 @@ void updateAnimation()
 	}*/
 
 	GLfloat current_time = (GLfloat)milliseconds_since_start / (1000.0f * animationTime);
-
-	if (current_time > 1.5f)
-	{
-		cout << "Now" << endl;
-	}
 
 	switch (animationMode)
 	{
@@ -313,25 +314,33 @@ void updateAnimation()
 		lampSkeleton.jumpForwardLamp(current_time, firstAnimation, animationMode);
 		break;
 	}
+}
 
-	//if(forwardAnimation)
-	//	spherePosition = splinePositionBezier(p1, p2, p3, p4, currentTime);
-	//else
-	//	spherePosition = splinePositionBezier(p4, p3, p2, p1, currentTime);
-	/*if (bezierCurve == WAVE)
+void checkCollision()
+{
+	long milliseconds_since_start = (long)milliseconds_now() - lightTimer;
+	GLfloat current_time = (GLfloat)milliseconds_since_start / 1000.0f;
+
+	if (current_time > 1.0f)
 	{
-		if (forwardAnimation)
-			spherePosition = splinePositionBezier(wave[0], wave[1], wave[2], wave[3], currentTime);
-		else
-			spherePosition = splinePositionBezier(wave[3], wave[2], wave[1], wave[0], currentTime);
+		float x1 = lampPosition.v[0];
+		float z1 = lampPosition.v[2];
+		float x2 = light.position.v[0];
+		float z2 = light.position.v[2];
+
+		float x1_x2 = x1 - x2;
+		float z1_z2 = z1 - z2;
+
+		float x1_x2_2 = x1_x2 * x1_x2;
+		float z1_z2_2 = z1_z2 * z1_z2;
+
+		if (sqrt(x1_x2_2 + z1_z2_2) < 2.5f)
+		{
+			light.active = false;
+			lampMode = LAMP_ON;
+			lampSkeleton.setLightColour(lampLight[lampMode]);
+		}
 	}
-	else
-	{
-		if (forwardAnimation)
-			spherePosition = splinePositionBezier(curve1[0], curve1[1], curve1[2], curve1[3], currentTime);
-		else
-			spherePosition = splinePositionBezier(curve2[0], curve2[1], curve2[2], curve2[3], currentTime);
-	}*/
 }
 
 void updateScene()
@@ -349,10 +358,14 @@ void updateScene()
 		if (animationMode != IDLE)
 			updateAnimation();
 
-		if (light.active)
-			light.updatePosition();
-
 		lampPosition = lampSkeleton.getRootPosition();
+
+		if (light.active)
+		{
+			light.updatePosition();
+			checkCollision();
+		}
+
 		camera.UpdateCamera3rdPerson(cameraPitch, cameraYaw, lampPosition, cameraDistance, yOffset);
 
 		break;
@@ -407,7 +420,7 @@ void init()
 	initialiseMeshes();
 
 	lampSkeleton.createLamp(lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh);
-	lampSkeleton.light_colour = lampLight[lampMode];
+	lampSkeleton.setLightColour(lampLight[lampMode]);
 
 	light = LightParticle(false, 1.0f, lightMesh, vec3(), vec3(), vec3(), vec4(0.85f, 0.75f, 0.0f, 0.5f));
 }

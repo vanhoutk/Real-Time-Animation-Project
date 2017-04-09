@@ -45,8 +45,7 @@ public:
 	//void lookLeftLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
 	//void lookRightLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
 	vec3 getRootPosition();
-
-	vec4 light_colour = vec4(0.85f, 0.75f, 0.0f, 0.5f);
+	void setLightColour(vec4 colour);
 
 private:
 	bool close = true;
@@ -59,6 +58,7 @@ private:
 
 	vec4 joint_colour = vec4(1.0f, 1.0f, 1.0f, 2.0f);
 	vec4 shell_colour = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	vec4 light_colour = vec4(0.85f, 0.75f, 0.0f, 0.5f);
 
 	vec3 jumpBase[4], jumpHead[4];
 	vec3 lookPoints[4];
@@ -303,8 +303,8 @@ void Skeleton::createLamp(Mesh base, Mesh arm_lower, Mesh arm_upper, Mesh head, 
 	bones[2]->addChild(bones[3]);
 
 	// Light
-	mat4 light_local = scale(identity_mat4(), vec3(1.0f, 1.0f, 1.0f));
-	light_local = translate(light_local, vec3(0.0f, 0.0f, -1.25f));
+	mat4 light_local = scale(identity_mat4(), vec3(1.1f, 1.1f, 1.1f));
+	light_local = translate(light_local, vec3(0.0f, 0.0f, -1.5f));
 	bones[4] = new Bone("head", bones[3], light_local, light, Mesh(), false, light_colour);
 	bones[3]->addChild(bones[4]);
 
@@ -569,6 +569,11 @@ void Skeleton::jumpForwardLamp(GLfloat time, bool &firstAnimation, GLuint &anima
 	}
 
 	//CCDIK(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), HEAD, LOWER_ARM, bones);
+}
+
+void Skeleton::setLightColour(vec4 colour)
+{
+	bones[LIGHT]->jointColour = colour;
 }
 
 /*void Skeleton::lookLeftLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)

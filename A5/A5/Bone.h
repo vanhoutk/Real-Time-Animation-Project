@@ -35,13 +35,13 @@ public:
 
 	versor orientation;
 	vec4 upVector, rightVector, forwardVector;
+	vec4 jointColour;
 
 private:
 	bool hasShell;
 	bool isRoot;
 	Mesh joint;
 	Mesh shell;
-	vec4 jointColour;
 	vec4 shellColour;
 
 	string name;

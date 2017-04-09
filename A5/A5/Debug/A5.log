@@ -1,4 +1,2 @@
 ﻿  main.cpp
-e:\users\kris\documents\college\fifth year onedrive\onedrive\fifth year - computers\cs7033 - real-time animation\assignments\code\real-time-animation-project\a5\a5\main.cpp(266): warning C4244: '=': conversion from '__int64' to 'long', possible loss of data
-e:\users\kris\documents\college\fifth year onedrive\onedrive\fifth year - computers\cs7033 - real-time animation\assignments\code\real-time-animation-project\a5\a5\main.cpp(271): warning C4244: 'initializing': conversion from '__int64' to 'long', possible loss of data
   A5.vcxproj -> E:\Users\Kris\Documents\College\Fifth Year OneDrive\OneDrive\Fifth Year - Computers\CS7033 - Real-time Animation\Assignments\Code\Real-Time-Animation-Project\A5\Debug\A5.exe
