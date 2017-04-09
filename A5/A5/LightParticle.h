@@ -69,7 +69,7 @@ void LightParticle::checkPlaneCollision(vec3 plane, vec3 normal)
 
 void LightParticle::drawParticle(mat4 view, mat4 projection, vec4 viewPosition)
 {
-	mat4 model = scale(identity_mat4(), vec3(0.005f, 0.005f, 0.005f));
+	mat4 model = scale(identity_mat4(), vec3(0.25f, 0.25f, 0.25f));
 	model = translate(model, position);
 	mesh.drawMesh(view, projection, model, colour, viewPosition);
 }

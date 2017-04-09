@@ -4,6 +4,7 @@
 #include <assimp/cimport.h>		// C importer
 #include <assimp/scene.h>		// Collects data
 #include <assimp/postprocess.h> // Various extra operations
+#include <chrono>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <iostream>
@@ -24,6 +25,7 @@
 #include "time.h"
 
 using namespace std;
+using namespace chrono;// clock = std::chrono::system_clock;
 
 /*
 *	Globally defined variables and constants
@@ -34,6 +36,7 @@ using namespace std;
 #define NUM_SHADERS	 5
 #define NUM_TEXTURES 2
 
+bool firstAnimation = false;
 bool firstMouse = true;
 bool forwardAnimation = true;
 bool keys[1024];
@@ -44,19 +47,17 @@ enum LampModes { LAMP_ON, LAMP_OFF };
 enum Meshes { LAMP_BASE_MESH, LAMP_ARM_LOWER_MESH, LAMP_ARM_UPPER_MESH, LAMP_HEAD_MESH, LAMP_LIGHT_MESH, LIGHT_MESH, GROUND_MESH };
 enum Shaders { SKYBOX, BASIC_COLOUR_SHADER, BASIC_TEXTURE_SHADER, LIGHT_SHADER, LIGHT_TEXTURE_SHADER };
 enum Textures { METAL_TEXTURE, WOOD_TEXTURE };
-GLfloat cameraDistance = 20.0f;
-GLfloat cameraPitch = 0.5f;
-GLfloat cameraSpeed = 0.005f;
-GLfloat cameraYaw = 2.4f;
+GLfloat animationTime = 2.0f;
+GLfloat cameraDistance = 20.0f, cameraPitch = 0.5f, cameraSpeed = 0.005f, cameraYaw = 2.4f;
 GLfloat movementSpeed = 0.1f;
-GLfloat currentTime = 0.0f;
+//GLfloat currentTime = 0.0f;
 GLfloat timeChange = 0.01f;
-GLfloat introTime = timeChange * 60 * 30;
+GLfloat introTime = 4.0f;
 GLfloat yOffset = 3.0f;
 GLuint animationMode = IDLE;
 GLuint bezierCurve = CURVE;
 GLuint currentIntroText = 0;
-GLuint gameState = TITLE;
+GLuint gameState = GAME;
 GLuint lampMode = LAMP_OFF;
 GLuint numIntroTexts = 5;
 GLuint lastX = 400, lastY = 300;
@@ -67,6 +68,8 @@ int screenHeight = 800;
 LightParticle light;
 Mesh lampBaseMesh, lampArmLowerMesh, lampArmUpperMesh, lampHeadMesh, lampLightMesh, lightMesh, groundMesh;
 Skeleton lampSkeleton;
+time_t startTime;
+time_point<system_clock, milliseconds> currentTime;
 vec3 lampPosition = vec3(0.0f, 0.0f, 0.0f);
 vec4 lampLight[2] = { vec4(0.0f, 0.0f, 0.0f, 0.8f), vec4(0.85f, 0.75f, 0.0f, 0.5f) };
 vec3 spherePosition;// = vec3(-9.0f, 10.0f, 0.0f);
@@ -120,6 +123,7 @@ void changeGameState(int state)
 		change_text_colour(introText[0], 1.0f, 1.0f, 1.0f, 1.0f);
 
 		gameState = INTRO;
+		startTime = time(0);
 		break;
 	case GAME:
 		gameState = GAME;
@@ -170,6 +174,7 @@ void processInput()
 		{
 			if (keys[GLUT_KEY_UP])
 			{
+				firstAnimation = true;
 				animationMode = PRE_JUMP_FORWARD;
 				//lampSkeleton.moveLamp(MOVE_FORWARD, movementSpeed);
 			}
@@ -182,6 +187,7 @@ void processInput()
 
 			if (keys['v'])
 			{
+				firstAnimation = true;
 				animationMode = PRE_JUMP;
 			}
 			else if (keys['b'])
@@ -220,11 +226,10 @@ void processInput()
 
 void updateIntro()
 {
-	if (currentTime <= introTime)
-		currentTime += timeChange;
-	else
+	GLfloat seconds_since_start = (GLfloat)difftime(time(0), startTime);
+	if(seconds_since_start > introTime)
 	{
-		currentTime = 0.0f;
+		//currentTime = 0.0f;
 
 		change_text_colour(introText[currentIntroText], 1.0f, 1.0f, 1.0f, 0.0f);
 		currentIntroText++;
@@ -232,28 +237,46 @@ void updateIntro()
 		if (currentIntroText >= numIntroTexts)
 			changeGameState(GAME);
 		else
+		{
 			change_text_colour(introText[currentIntroText], 1.0f, 1.0f, 1.0f, 1.0f);
+			startTime = time(0);
+		}
 	}
 }
 
 void updateAnimation()
 {
-	if (currentTime <= 1.0f)
+	//if (firstAnimation) startTime = system_clock::to_time_t(system_clock::now()); //startTime = time(0);
+	if (firstAnimation) 
+		currentTime = time_point_cast<milliseconds>(system_clock::now()); //startTime = time(0);
+
+
+	//double seconds_since_start = (system_clock::to_time_t(system_clock::now()), startTime);
+	GLfloat seconds_since_start = (GLfloat)(system_clock::now() - currentTime).count();
+	//if (seconds_since_start > animationTime)
+	//{
+	//	startTime = time(0);
+	//	seconds_since_start = (GLfloat)difftime(time(0), startTime);
+	//}
+
+	/*if (currentTime <= 1.0f)
 		currentTime += timeChange;
 	else
 	{
 		currentTime = 0.0f;
 		//animationMode = -1;
-	}
+	}*/
+
+	GLfloat current_time = (GLfloat)seconds_since_start / (1000.0f * animationTime);
 
 	switch (animationMode)
 	{
 	case PRE_JUMP:
 	case POST_JUMP:
-		lampSkeleton.preAndPostJumpLamp(currentTime, timeChange, animationMode);
+		lampSkeleton.preAndPostJumpLamp(current_time, firstAnimation, animationMode);
 		break;
 	case DO_JUMP:
-		lampSkeleton.jumpLamp(currentTime, timeChange, animationMode);
+		lampSkeleton.jumpLamp(current_time, firstAnimation, animationMode);
 		break;
 	/*case LOOK_LEFT:
 		lampSkeleton.lookLeftLamp(currentTime, timeChange, animationMode);
@@ -263,10 +286,10 @@ void updateAnimation()
 		break;*/
 	case PRE_JUMP_FORWARD:
 	case POST_JUMP_FORWARD:
-		lampSkeleton.preAndPostJumpForwardLamp(currentTime, timeChange, animationMode);
+		lampSkeleton.preAndPostJumpForwardLamp(current_time, firstAnimation, animationMode);
 		break;
 	case JUMP_FORWARD:
-		lampSkeleton.jumpForwardLamp(currentTime, timeChange, animationMode);
+		lampSkeleton.jumpForwardLamp(current_time, firstAnimation, animationMode);
 		break;
 	}
 
@@ -274,7 +297,7 @@ void updateAnimation()
 	//	spherePosition = splinePositionBezier(p1, p2, p3, p4, currentTime);
 	//else
 	//	spherePosition = splinePositionBezier(p4, p3, p2, p1, currentTime);
-	if (bezierCurve == WAVE)
+	/*if (bezierCurve == WAVE)
 	{
 		if (forwardAnimation)
 			spherePosition = splinePositionBezier(wave[0], wave[1], wave[2], wave[3], currentTime);
@@ -287,7 +310,7 @@ void updateAnimation()
 			spherePosition = splinePositionBezier(curve1[0], curve1[1], curve1[2], curve1[3], currentTime);
 		else
 			spherePosition = splinePositionBezier(curve2[0], curve2[1], curve2[2], curve2[3], currentTime);
-	}
+	}*/
 }
 
 void updateScene()

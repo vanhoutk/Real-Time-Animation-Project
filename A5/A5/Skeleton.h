@@ -38,12 +38,12 @@ public:
 	void moveToCCD(vec3 position, bool hand);
 	void moveLamp(int direction, GLfloat distance);
 	void turnLamp(int direction, GLfloat rotation);
-	void preAndPostJumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
-	void jumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
-	void preAndPostJumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
-	void jumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
-	void lookLeftLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
-	void lookRightLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	void preAndPostJumpLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode);
+	void jumpLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode);
+	void preAndPostJumpForwardLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode);
+	void jumpForwardLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode);
+	//void lookLeftLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
+	//void lookRightLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode);
 	vec3 getRootPosition();
 
 	vec4 light_colour = vec4(0.85f, 0.75f, 0.0f, 0.5f);
@@ -57,7 +57,7 @@ private:
 	GLfloat theta1 = 0.0f, theta2 = 0.0f, theta3 = 0.0f;
 	GLfloat theta4 = 0.0f, theta5 = 0.0f, theta6 = 0.0f;
 
-	vec4 joint_colour = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	vec4 joint_colour = vec4(1.0f, 1.0f, 1.0f, 2.0f);
 	vec4 shell_colour = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
 	vec3 jumpBase[4], jumpHead[4];
@@ -419,20 +419,24 @@ vec3 Skeleton::getRootPosition()
 	return rootBone->getGlobalPosition();
 }
 
-void Skeleton::preAndPostJumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+void Skeleton::preAndPostJumpLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode)
 {
-	if (time <= timeChange)
+	if (firstAnimation)
 	{
 		jumpHead[0] = jumpHead[3] = bones[HEAD]->getGlobalPosition();
 		jumpHead[1] = jumpHead[2] = jumpHead[0] - rootBone->upVector * 1.5f;
+		firstAnimation = false;
 	}
 
-	if (time == 0.0f)
+	if (time >= 1.0f)
 	{
 		if (animationMode == PRE_JUMP)
 			animationMode = DO_JUMP;
 		else
 			animationMode = IDLE;
+
+		time = 1.0f;
+		firstAnimation = true;
 	}
 
 	vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
@@ -450,20 +454,24 @@ void Skeleton::preAndPostJumpLamp(GLfloat time, GLfloat timeChange, GLuint &anim
 	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
 }
 
-void Skeleton::jumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+void Skeleton::jumpLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode)
 {
-	if (time <= timeChange)
+	if (firstAnimation)
 	{
 		jumpBase[0] = jumpBase[3] = rootBone->getGlobalPosition();
 		jumpBase[1] = jumpBase[2] = jumpBase[0] + vec3(0.0f, 5.0f, 0.0f);
 		
 		jumpHead[0] = jumpHead[3] = bones[HEAD]->getGlobalPosition();
 		jumpHead[1] = jumpHead[2] = jumpHead[0] + rootBone->upVector * 6.0f;
+
+		firstAnimation = false;
 	}
 
-	if (time == 0.0f)
+	if (time >= 1.0f)
 	{
 		animationMode = POST_JUMP;
+		time = 1.0f;
+		firstAnimation = true;
 	}
 
 	rootBone->setPosition(vec4(splinePositionBezier(jumpBase[0], jumpBase[1], jumpBase[2], jumpBase[3], time), 0.0f));
@@ -484,21 +492,25 @@ void Skeleton::jumpLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
 	//CCDIK(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), HEAD, LOWER_ARM, bones);
 }
 
-void Skeleton::preAndPostJumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+void Skeleton::preAndPostJumpForwardLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode)
 {
-	if (time <= timeChange)
+	if (firstAnimation)
 	{
 		jumpHead[0] = bones[HEAD]->getGlobalPosition();
 		jumpHead[1] = jumpHead[2] = jumpHead[0] - rootBone->upVector * 1.5f;
 		jumpHead[3] = jumpHead[0] + rootBone->forwardVector * 0.5f;
+		firstAnimation = false;
 	}
 
-	if (time == 0.0f)
+	if (time >= 1.0f)
 	{
 		if (animationMode == PRE_JUMP_FORWARD)
 			animationMode = JUMP_FORWARD;
 		else
 			animationMode = IDLE;
+
+		time = 1.0f;
+		firstAnimation = true;
 	}
 
 	vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
@@ -516,9 +528,9 @@ void Skeleton::preAndPostJumpForwardLamp(GLfloat time, GLfloat timeChange, GLuin
 	bones[LOWER_ARM]->bendJoint(1.0f * radians(theta1));
 }
 
-void Skeleton::jumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animationMode)
+void Skeleton::jumpForwardLamp(GLfloat time, bool &firstAnimation, GLuint &animationMode)
 {
-	if (time == timeChange)
+	if (firstAnimation)
 	{
 		jumpBase[0] = rootBone->getGlobalPosition();
 		jumpBase[3] = jumpBase[0] + rootBone->forwardVector * 5.0f;
@@ -529,18 +541,17 @@ void Skeleton::jumpForwardLamp(GLfloat time, GLfloat timeChange, GLuint &animati
 		jumpHead[3] = jumpHead[0] + rootBone->forwardVector * 4.0f;
 		jumpHead[1] = jumpHead[0] + rootBone->upVector * 6.0f;
 		jumpHead[2] = jumpHead[3] + rootBone->upVector * 6.0f;
+		firstAnimation = false;
 	}
 
-	if (time == 0.0f)
+	if (time >= 1.0f)
 	{
 		animationMode = POST_JUMP_FORWARD;
+		time = 1.0f;
+		firstAnimation = true;
 	}
 	else
 	{
-		if (time >= 1.0f)
-		{
-			time = 1.0f;
-		}
 		rootBone->setPosition(vec4(splinePositionBezier(jumpBase[0], jumpBase[1], jumpBase[2], jumpBase[3], time), 0.0f));
 		//bones[HEAD]->setPosition(vec4(splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time), 0.0f));
 		vec3 head_position = splinePositionBezier(jumpHead[0], jumpHead[1], jumpHead[2], jumpHead[3], time);
